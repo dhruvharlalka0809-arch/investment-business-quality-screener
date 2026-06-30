@@ -98,6 +98,7 @@ class QualityModelTests(unittest.TestCase):
 
         self.assertFalse(loaded.empty)
         self.assertIn("Company", loaded.columns)
+        self.assertNotIn("Quality_Score", loaded.columns)
 
 
 if __name__ == "__main__":

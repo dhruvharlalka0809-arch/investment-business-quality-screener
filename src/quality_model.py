@@ -35,7 +35,7 @@ REQUIRED_COLUMNS = {
 
 
 def load_company_universe(path: str) -> pd.DataFrame:
-    return normalize_company_universe(pd.read_csv(path))
+    return pd.read_csv(path)
 
 
 def normalize_company_universe(df: pd.DataFrame) -> pd.DataFrame:
