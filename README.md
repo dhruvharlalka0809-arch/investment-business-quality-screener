@@ -2,6 +2,10 @@
 
 A Streamlit dashboard that ranks companies by investment and business quality using growth, margin quality, free cash flow conversion, ROIC, leverage, customer concentration, recurring revenue, and risk flags.
 
+## Live Demo
+
+[Open the Streamlit app](https://investment-quality-screener.streamlit.app/)
+
 ## What It Does
 
 - Scores a company universe on a 0-100 quality scale using fixed absolute thresholds
