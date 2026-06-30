@@ -7,10 +7,12 @@ from src.quality_model import (
     build_risk_flags,
     build_screening_memo,
     build_sector_summary,
+    count_risk_flags,
     load_company_universe,
     normalize_company_universe,
     recommend_company,
     score_company_universe,
+    score_market_position,
 )
 
 
@@ -51,18 +53,30 @@ class QualityModelTests(unittest.TestCase):
 
         self.assertGreaterEqual(scored["Quality_Score"].min(), 0)
         self.assertLessEqual(scored["Quality_Score"].max(), 100)
+        self.assertIn("Rule_Of_40_Score", scored.columns)
+        self.assertIn("Market_Position_Score", scored.columns)
 
     def test_risk_flags_detect_weak_company(self):
         flags = build_risk_flags(self.universe.iloc[-1])
 
         self.assertIn("High leverage", flags)
         self.assertIn("Customer concentration", flags)
+        self.assertIn("Below Rule of 40", flags)
 
     def test_recommendation_uses_score_and_flags(self):
         scored = score_company_universe(self.universe, self.weights)
 
         self.assertIn(scored.iloc[0]["Recommendation"], {"Attractive", "Watchlist"})
         self.assertEqual(scored.iloc[-1]["Recommendation"], "Avoid")
+
+    def test_flag_count_is_explicit(self):
+        self.assertEqual(count_risk_flags("None"), 0)
+        self.assertEqual(count_risk_flags("High leverage, Thin margin"), 2)
+
+    def test_market_position_scores_are_used(self):
+        self.assertEqual(score_market_position("Leader"), 100.0)
+        self.assertEqual(score_market_position("Challenger"), 65.0)
+        self.assertEqual(score_market_position("Unknown"), 50.0)
 
     def test_sector_summary_aggregates_scores(self):
         scored = score_company_universe(self.universe, self.weights)

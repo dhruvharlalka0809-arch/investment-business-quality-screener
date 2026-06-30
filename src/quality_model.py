@@ -7,13 +7,15 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class ScreeningWeights:
-    growth: float = 0.18
-    margin: float = 0.16
-    fcf_conversion: float = 0.16
-    roic: float = 0.18
-    leverage: float = 0.12
-    concentration: float = 0.10
+    growth: float = 0.16
+    margin: float = 0.14
+    fcf_conversion: float = 0.15
+    roic: float = 0.17
+    leverage: float = 0.11
+    concentration: float = 0.09
     recurring_revenue: float = 0.10
+    rule_of_40: float = 0.05
+    market_position: float = 0.03
 
 
 REQUIRED_COLUMNS = {
@@ -59,6 +61,8 @@ def score_company_universe(df: pd.DataFrame, weights: ScreeningWeights) -> pd.Da
     output["Leverage_Score"] = score_negative(output["Net_Debt_EBITDA"], 0.0, 3.5)
     output["Concentration_Score"] = score_negative(output["Customer_Concentration"], 0.10, 0.40)
     output["Recurring_Revenue_Score"] = score_positive(output["Recurring_Revenue"], 0.30, 0.90)
+    output["Rule_Of_40_Score"] = score_positive(output["Rule_Of_40"], 0.10, 0.45)
+    output["Market_Position_Score"] = output["Market_Position"].map(score_market_position).fillna(50.0)
     output["Quality_Score"] = (
         output["Growth_Score"] * weights.growth
         + output["Margin_Score"] * weights.margin
@@ -67,6 +71,8 @@ def score_company_universe(df: pd.DataFrame, weights: ScreeningWeights) -> pd.Da
         + output["Leverage_Score"] * weights.leverage
         + output["Concentration_Score"] * weights.concentration
         + output["Recurring_Revenue_Score"] * weights.recurring_revenue
+        + output["Rule_Of_40_Score"] * weights.rule_of_40
+        + output["Market_Position_Score"] * weights.market_position
     )
     output["Risk_Flags"] = output.apply(build_risk_flags, axis=1)
     output["Recommendation"] = output.apply(recommend_company, axis=1)
@@ -96,6 +102,8 @@ def build_screening_memo(scored: pd.DataFrame, sector_summary: pd.DataFrame) -> 
 
 **Why it screens well:** {top.Company} combines {float(top.Revenue_Growth):.1%} revenue growth, {float(top.EBITDA_Margin):.1%} EBITDA margin, {float(top.FCF_Conversion):.1%} FCF conversion, and {float(top.ROIC):.1%} ROIC.
 
+**Quality signals:** Rule of 40 is {float(top.Rule_Of_40):.1%}; market position is {top.Market_Position}.
+
 **Best sector:** {best_sector.Sector} has the highest average quality score at {float(best_sector.Avg_Quality_Score):.1f}/100.
 
 **Portfolio screen:** {watchlist_count} companies require watchlist review and {avoid_count} companies screen as avoid candidates.
@@ -116,17 +124,35 @@ def build_risk_flags(row: pd.Series) -> str:
         flags.append("Low ROIC")
     if float(row["EBITDA_Margin"]) < 0.12:
         flags.append("Thin margin")
+    if float(row["Rule_Of_40"]) < 0.30:
+        flags.append("Below Rule of 40")
     return ", ".join(flags) if flags else "None"
 
 
 def recommend_company(row: pd.Series) -> str:
     score = float(row["Quality_Score"])
     flags = str(row["Risk_Flags"])
-    if score >= 72 and flags == "None":
+    flag_count = count_risk_flags(flags)
+    if score >= 72 and flag_count == 0:
         return "Attractive"
-    if score < 45 or flags.count(",") >= 2:
+    if score < 45 or flag_count >= 3:
         return "Avoid"
     return "Watchlist"
+
+
+def count_risk_flags(flags: str) -> int:
+    if flags == "None":
+        return 0
+    return len([flag for flag in flags.split(",") if flag.strip()])
+
+
+def score_market_position(position: str) -> float:
+    scores = {
+        "Leader": 100.0,
+        "Challenger": 65.0,
+        "Niche": 35.0,
+    }
+    return scores.get(str(position), 50.0)
 
 
 def score_positive(series: pd.Series, floor: float, ceiling: float) -> pd.Series:

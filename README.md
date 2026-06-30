@@ -4,9 +4,10 @@ A Streamlit dashboard that ranks companies by investment and business quality us
 
 ## What It Does
 
-- Scores a company universe on a 0-100 quality scale
+- Scores a company universe on a 0-100 quality scale using fixed absolute thresholds
 - Ranks companies as Attractive, Watchlist, or Avoid
-- Identifies risk flags such as high leverage, customer concentration, weak cash conversion, low ROIC, and thin margins
+- Identifies risk flags such as high leverage, customer concentration, weak cash conversion, low ROIC, thin margins, and weak Rule of 40
+- Uses Rule of 40 and market position in the quality score
 - Summarizes quality by sector
 - Lets users adjust screening weights in the sidebar
 - Generates an investment screening memo
@@ -48,8 +49,9 @@ python scripts/validate.py
 ## Portfolio Talking Points
 
 - Built a company quality screener for investment, consulting, and business analysis use cases
-- Combined growth, profitability, cash conversion, capital efficiency, leverage, concentration, and recurring revenue into a weighted score
+- Combined growth, profitability, cash conversion, capital efficiency, leverage, concentration, recurring revenue, Rule of 40, and market position into a weighted score
 - Added risk flags and recommendation logic for Attractive, Watchlist, and Avoid classifications
+- Disclosed that scoring bands are fixed absolute thresholds rather than peer-relative rankings
 - Converted screening results into an executive-style investment memo
 
 ## Author

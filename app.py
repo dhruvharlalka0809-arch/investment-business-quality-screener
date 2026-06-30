@@ -43,16 +43,26 @@ st.caption("Rank companies by growth, margin quality, cash conversion, ROIC, lev
 
 with st.sidebar:
     st.header("Screening Weights")
-    growth_weight = st.slider("Growth", 0.00, 0.35, 0.18, 0.01)
-    margin_weight = st.slider("EBITDA margin", 0.00, 0.35, 0.16, 0.01)
-    fcf_weight = st.slider("FCF conversion", 0.00, 0.35, 0.16, 0.01)
-    roic_weight = st.slider("ROIC", 0.00, 0.35, 0.18, 0.01)
-    leverage_weight = st.slider("Low leverage", 0.00, 0.25, 0.12, 0.01)
-    concentration_weight = st.slider("Low concentration", 0.00, 0.25, 0.10, 0.01)
-    recurring_weight = st.slider("Recurring revenue", 0.00, 0.25, 0.10, 0.01)
-    st.caption("Weights are normalized automatically so the quality score remains on a 0-100 scale.")
-    sector_filter = st.multiselect("Sector filter", sorted(load_sample_universe()["Sector"].unique()))
     uploaded_file = st.file_uploader("Upload company universe", type="csv")
+    try:
+        active_universe = pd.read_csv(uploaded_file) if uploaded_file else load_sample_universe()
+        sector_options = sorted(active_universe["Sector"].dropna().unique())
+    except Exception:
+        active_universe = pd.DataFrame()
+        sector_options = []
+
+    growth_weight = st.slider("Growth", 0.00, 0.35, 0.16, 0.01)
+    margin_weight = st.slider("EBITDA margin", 0.00, 0.35, 0.14, 0.01)
+    fcf_weight = st.slider("FCF conversion", 0.00, 0.35, 0.15, 0.01)
+    roic_weight = st.slider("ROIC", 0.00, 0.35, 0.17, 0.01)
+    leverage_weight = st.slider("Low leverage", 0.00, 0.25, 0.11, 0.01)
+    concentration_weight = st.slider("Low concentration", 0.00, 0.25, 0.09, 0.01)
+    recurring_weight = st.slider("Recurring revenue", 0.00, 0.25, 0.10, 0.01)
+    rule_of_40_weight = st.slider("Rule of 40", 0.00, 0.20, 0.05, 0.01)
+    market_position_weight = st.slider("Market position", 0.00, 0.20, 0.03, 0.01)
+    st.caption("Weights are normalized automatically so the quality score remains on a 0-100 scale.")
+    sector_filter = st.multiselect("Sector filter", sector_options)
+    st.caption("No sectors selected = all sectors shown.")
 
 raw_weights = {
     "growth": growth_weight,
@@ -62,14 +72,19 @@ raw_weights = {
     "leverage": leverage_weight,
     "concentration": concentration_weight,
     "recurring_revenue": recurring_weight,
+    "rule_of_40": rule_of_40_weight,
+    "market_position": market_position_weight,
 }
 total_weight = sum(raw_weights.values()) or 1.0
 weights = ScreeningWeights(**{key: value / total_weight for key, value in raw_weights.items()})
 
 try:
-    universe = pd.read_csv(uploaded_file) if uploaded_file else load_sample_universe()
+    universe = active_universe.copy()
     if sector_filter:
         universe = universe.loc[universe["Sector"].isin(sector_filter)]
+    if universe.empty:
+        st.warning("No companies match the selected sector filter.")
+        st.stop()
     scored = score_company_universe(universe, weights)
 except Exception as exc:
     st.error(f"Could not load company universe: {exc}")
@@ -106,6 +121,7 @@ with snapshot_tab:
         st.write(f"Quality score: **{float(top_company.Quality_Score):.1f}/100**")
         st.write(f"Risk flags: **{top_company.Risk_Flags}**")
         st.write(f"Rule of 40: **{float(top_company.Rule_Of_40):.1%}**")
+        st.write(f"Market position: **{top_company.Market_Position}**")
 
     st.subheader("Recommendation Mix")
     recommendation_mix = scored["Recommendation"].value_counts().rename_axis("Recommendation").reset_index(name="Companies")
@@ -126,12 +142,14 @@ with company_tab:
             "Net_Debt_EBITDA",
             "Customer_Concentration",
             "Recurring_Revenue",
+            "Rule_Of_40",
+            "Market_Position",
             "Risk_Flags",
         ]
     ].copy()
     display = format_percent_columns(
         display,
-        ["Revenue_Growth", "EBITDA_Margin", "FCF_Conversion", "ROIC", "Customer_Concentration", "Recurring_Revenue"],
+        ["Revenue_Growth", "EBITDA_Margin", "FCF_Conversion", "ROIC", "Customer_Concentration", "Recurring_Revenue", "Rule_Of_40"],
     )
     display = format_number_columns(display, ["Quality_Score"], "/100")
     st.dataframe(display, use_container_width=True, hide_index=True)
@@ -147,6 +165,9 @@ with sector_tab:
     st.subheader("Average Quality by Sector")
     st.bar_chart(sector_summary.set_index("Sector")["Avg_Quality_Score"], use_container_width=True)
 
+    st.subheader("Rule of 40 by Company")
+    st.bar_chart(scored.set_index("Company")["Rule_Of_40"], use_container_width=True)
+
 with memo_tab:
     st.subheader("Investment Screening Memo")
     memo = build_screening_memo(scored, sector_summary)
@@ -159,4 +180,6 @@ with data_tab:
     st.subheader("Scoring Methodology")
     st.write("Positive factors are scored higher when the metric is stronger: growth, EBITDA margin, FCF conversion, ROIC, and recurring revenue.")
     st.write("Risk factors are scored higher when risk is lower: leverage and customer concentration.")
+    st.write("Rule of 40 and market position contribute to the quality score.")
+    st.write("Scoring bands are fixed absolute thresholds, not relative peer rankings. For example, growth is scored on a 0-22% scale and EBITDA margin on an 8-26% scale.")
     st.write("Recommendations combine quality score thresholds with risk-flag count.")
